@@ -4,22 +4,23 @@
  * transmission.
  *
  * @author Logan Furedi <logan.furedi@umsats.ca>
- * @author Graham Driver <graham.driver@umsats.ca>
  *
  * @date February 12, 2024
  */
 
-#ifndef CAN_WRAPPER_DRIVER_INC_CAN_WRAPPER_H_
-#define CAN_WRAPPER_DRIVER_INC_CAN_WRAPPER_H_
+#ifndef CAN_WRAPPER_MODULE_INC_CAN_WRAPPER_H_
+#define CAN_WRAPPER_MODULE_INC_CAN_WRAPPER_H_
 
 #include <can_message.h>
 #include <stdbool.h>
 #include <stm32l4xx.h>
 #include <stm32l4xx_hal_can.h>
+#include <stm32l4xx_hal_tim.h>
 #include <stm32l4xx_hal_def.h>
 #include <sys/_stdint.h>
 
-typedef enum {
+typedef enum
+{
 	CAN_WRAPPER_HAL_OK = HAL_OK,
 	CAN_WRAPPER_HAL_ERROR,
 	CAN_WRAPPER_HAL_BUSY,
@@ -27,24 +28,35 @@ typedef enum {
 	CAN_WRAPPER_INVALID_ARGS,
 	CAN_WRAPPER_NOT_INITIALISED,
 	CAN_WRAPPER_FAILED_TO_CONFIG_FILTER,
-	CAN_WRAPPER_FAILED_TO_START,
+	CAN_WRAPPER_FAILED_TO_START_CAN,
 	CAN_WRAPPER_FAILED_TO_ENABLE_INTERRUPT,
+	CAN_WRAPPER_FAILED_TO_START_TIMER,
 } CANWrapper_StatusTypeDef;
 
-typedef enum {
+typedef enum
+{
 	CAN_WRAPPER_TIMEOUT = 0,
-	CAN_WRAPPER_NACK,
+	CAN_WRAPPER_CAN_TIMEOUT,
 } CANWrapper_SendError;
+
+typedef enum
+{
+	NODE_CDH     = 0,
+	NODE_POWER   = 1,
+	NODE_ADCS    = 2,
+	NODE_PAYLOAD = 3
+} NodeID;
 
 typedef void (*CANMessageCallback)(CANMessage);
 typedef void (*CANSendFailureCallback)(CANWrapper_SendError, CANMessage);
 
 typedef struct
 {
-	CAN_HandleTypeDef *hcan; // pointer to the HAL handle for CAN processing.
-	uint8_t can_id; // unique CAN ID for this device. (max value: 0x03)
+	CAN_HandleTypeDef *hcan; // pointer to the CAN peripheral handle.
+	TIM_HandleTypeDef *htim; // pointer to the timer handle.
+	NodeID node_id; // your subsystem's unique ID in the CAN network. (0-3)
 	CANMessageCallback message_callback; // called when a new message is polled.
-	CANSendFailureCallback send_failure_callback; // called when a message fails to send. (either due to timeout or NACK)
+	CANSendFailureCallback send_failure_callback; // called when a message fails to send.
 } CANWrapper_InitTypeDef;
 
 #define CMD_ACK   0x01
@@ -70,8 +82,9 @@ CANWrapper_StatusTypeDef CANWrapper_Poll_Messages();
  * packaged with the CANMessage structure.
  *
  * @param message       See CANMessage type definition.
+ * @param recipient     ID of the intended recipient.
  */
-CANWrapper_StatusTypeDef CANWrapper_Send_Message(CANMessage message);
+CANWrapper_StatusTypeDef CANWrapper_Send_Message(CANMessage message, NodeID recipient);
 
 /**
  * @brief               Sends a response message to the most recent sender.
@@ -87,7 +100,7 @@ CANWrapper_StatusTypeDef CANWrapper_Send_Message(CANMessage message);
  *                      received message, with the last remaining bytes being
  *                      reserved for error information. Consult the command list
  *                      in the google docs for details.
- */
+ *
 CANWrapper_StatusTypeDef CANWrapper_Send_Response(bool success, CANMessageBody msg_body);
-
-#endif /* CAN_WRAPPER_DRIVER_INC_CAN_WRAPPER_H_ */
+*/
+#endif /* CAN_WRAPPER_MODULE_INC_CAN_WRAPPER_H_ */

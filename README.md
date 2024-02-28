@@ -6,34 +6,65 @@ This module wraps a simpler interface around HAL's CAN interface for sending & r
 
 You will need CAN set up in order to use this module.
 
-To set up CAN, you will need to:
+To set up **CAN**, you will need to:
 
-1. Enable a CAN peripheral in your `.ioc` file under `Pinout & Configuration > Connectivity`.
-2. Enable `RX0 interrupt` in `CAN1 > NVIC Settings`.
-3. Regenerate code.
-4. Ensure initialization code has been generated in `main.c`
+1. Enable a CAN peripheral in your `.ioc` file under `Pinout & Configuration`.
+2. Configure your CAN peripheral as such:
+   - In `NVIC Settings`, enable `RX0 interrupt`.
+   - In `Parameter Settings`, set `Prescaler (for Time Quantum)` to `16`.
+   - In `Parameter Settings`, set `Time Quanta in Bit Segment 1` to `5 Times`.
+   - In `Parameter Settings`, set `Time Quanta in Bit Segment 2` to `4 Times`.
 
-To import CAN Wrapper you will need to:
+>Note: These Quanta settings are recommended as of Feb 27, 2024 and are subject to change.
 
-1. Copy this folder into your HAL project under `Drivers/`.
-2. From STM32CubeIDE, right click on the `CAN_Wrapper_Driver/Inc` folder and click `Add/remove include path...`.
-3. Leave all configurations selected and hit `OK`.
-4. Call `CANWrapper_Init` somewhere after CAN is initialized (you will need to include `can_wrapper.h`).
-5. Pass in a pointer to the CAN peripheral you are using (typically CAN1).
+3. Save & regenerate code.
+4. Ensure `MX_CAN#_Init();` has been generated in `main.c`
+
+To import **CAN Wrapper** you will need to:
+
+1. Open your terminal in the root folder of your STM32 project
+2. Enter the following command
+```bash
+git submodule add https://github.com/UMSATS/can-wrapper-module Drivers/can-wrapper-module
+```
+3. From STM32CubeIDE, right click on the `can-wrapper-driver/Inc` folder and click `Add/remove include path...`.
+4. Leave all configurations selected and hit `OK`.
+5. CAN Wrapper requires a dedicated timer peripheral to work. Enable `TIM16` in your `.ioc`.
+6. In `Parameter Settings`, configure your timer as such:
+   - Set `Prescalar` to `80 - 1`.
+   - Set `Counter Period` to `5000 - 1`.
+7. Save & regenerate code.
 
 ## Initialisation
 
-This driver uses a flexible callback approach to handling incoming messages.
+This driver uses a flexible *callback* approach to events such as incoming messages and transmission failures.
 
-Pass in a reference to your message handling function when calling `CANWrapper_Init`:
+All initialisation settings are to be stored in a `CANWrapper_InitTypeDef` struct.
+
+E.g:
 
 ```c
-CANWrapper_Init(&hcan1, 0x2, &on_message_received);
+CANWrapper_InitTypeDef wc_init = {
+		.node_id = NODE_ADCS, // your subsystem's unique ID in the CAN network.
+		
+		.hcan = &hcan1,  // pointer to the CAN peripheral handle.
+		.htim = &htim16, // pointer to the timer handle.
+		
+		.message_callback = &on_message_received, // to process incoming messages.
+		.send_failure_callback = &on_send_failed // timeout during transmission.
+};
 ```
 
-Here's a template message handler to start:
+Pass in your settings when calling `CANWrapper_Init` (sometime after `MX_CAN#_Init`):
 
 ```c
+CANWrapper_Init(wc_init);
+```
+
+Here is an adaptable template for a message handler to start:
+
+```c
+#include "can_wrapper.h"
 void on_message_received(CANMessage msg)
 {
 	CANMessageBody response_body = { .data = { msg.command_id } };
@@ -72,6 +103,14 @@ void on_message_received(CANMessage msg)
 
 	CANWrapper_Send_Response(status == HAL_OK, response_body); // return to sender.
 }
+```
+
+## Updating
+
+To update your copy of the module to the most recent commit, open your project in a terminal and enter this command:
+
+```
+git submodule update
 ```
 
 ## Additional Examples

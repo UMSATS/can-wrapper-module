@@ -4,7 +4,6 @@
  * transmission.
  *
  * @author Logan Furedi <logan.furedi@umsats.ca>
- * @author Graham Driver <graham.driver@umsats.ca>
  *
  * @date February 12, 2024
  */
@@ -13,30 +12,22 @@
 #include <can_wrapper.h>
 #include <stddef.h>
 
-// Command:___________________________
-//|CMD|DA0|DA1|DA2|DA3|DA4|DA5|DA6|DA7|
-// ````````````````````````````````````
-// Acknowledgement:___________________
-//|ACK|CMD|DA0|DA1|DA2|DA3|DA4|DA5|DA6|
-// ````````````````````````````````````
-
-#define PRIORITY_MASK     0b11111110000
-#define SENDER_ID_MASK    0b00000001100
-#define RECIPIENT_ID_MASK 0b00000000011
-
-
+#define ACK_MASK          0b00000000001
+#define RECIPIENT_ID_MASK 0b00000000110
+#define SENDER_ID_MASK    0b00000011000
+#define PRIORITY_MASK     0b11111100000
 
 static CANWrapper_InitTypeDef s_init_struct = {0};
-
 static CANQueue s_msg_queue = {0};
 static CANMessage s_received_msg = {0}; // the current message being processed.
 static bool s_init = false;
 
 CANWrapper_StatusTypeDef CANWrapper_Init(CANWrapper_InitTypeDef init_struct)
 {
-	if (!(init_struct.can_id <= 0x3
+	if ( !(init_struct.can_id <= 0x3
 		&& init_struct.message_callback != NULL
-		&& init_struct.hcan != NULL))
+		&& init_struct.hcan != NULL
+		&& init_struct.htim != NULL))
 	{
 		return CAN_WRAPPER_INVALID_ARGS;
 	}
@@ -61,13 +52,18 @@ CANWrapper_StatusTypeDef CANWrapper_Init(CANWrapper_InitTypeDef init_struct)
 
 	if (HAL_CAN_Start(init_struct.hcan) != HAL_OK)
 	{
-		return CAN_WRAPPER_FAILED_TO_START;
+		return CAN_WRAPPER_FAILED_TO_START_CAN;
 	}
 
 	// enable CAN interrupt.
 	if (HAL_CAN_ActivateNotification(init_struct.hcan, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK)
 	{
 		return CAN_WRAPPER_FAILED_TO_ENABLE_INTERRUPT;
+	}
+
+	if (HAL_TIM_Base_Start(init_struct.htim) != HAL_OK)
+	{
+		return CAN_WRAPPER_FAILED_TO_START_TIMER;
 	}
 
 	s_msg_queue = CANQueue_Create();
@@ -85,13 +81,20 @@ CANWrapper_StatusTypeDef CANWrapper_Poll_Messages()
 
 	if (CANQueue_Dequeue(&s_msg_queue, &s_received_msg))
 	{
-		s_init_struct.message_callback(s_received_msg);
+		if (s_received_msg.is_ack_flag)
+		{
+			// delete the entry for this message.
+		}
+		else
+		{
+			s_init_struct.message_callback(s_received_msg);
+		}
 	}
 
 	return CAN_WRAPPER_HAL_OK;
 }
 
-CANWrapper_StatusTypeDef CANWrapper_Send_Message(CANMessage message)
+CANWrapper_StatusTypeDef CANWrapper_Send_Message(CANMessage message, NodeID recipient)
 {
 	if (!s_init) return CAN_WRAPPER_NOT_INITIALISED;
 
@@ -99,7 +102,7 @@ CANWrapper_StatusTypeDef CANWrapper_Send_Message(CANMessage message)
 	CAN_TxHeaderTypeDef tx_header;
 
 	// TX message parameters.
-	uint16_t id = (message.priority << 4) | (s_init_struct.can_id << 2) | (0x0F & message.recipient_id);
+	uint16_t id = (message.priority << 4) | (s_init_struct.can_id << 2) | (0x0F & recipient_id);
 
 	tx_header.StdId = id;
 	tx_header.IDE = CAN_ID_STD;
@@ -111,7 +114,7 @@ CANWrapper_StatusTypeDef CANWrapper_Send_Message(CANMessage message)
 
 	return HAL_CAN_AddTxMessage(s_init_struct.hcan, &tx_header, message.data, &tx_mailbox);
 }
-
+/*
 CANWrapper_StatusTypeDef CANWrapper_Send_Response(bool success, CANMessageBody msg_body)
 {
 	if (!s_init) return CAN_WRAPPER_NOT_INITIALISED;
@@ -128,7 +131,7 @@ CANWrapper_StatusTypeDef CANWrapper_Send_Response(bool success, CANMessageBody m
 
     return CANWrapper_Send_Message(msg);
 }
-
+*/
 // called by HAL when a new CAN message is received and pending.
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan_ptr)
 {

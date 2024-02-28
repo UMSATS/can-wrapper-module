@@ -8,8 +8,8 @@
  * @date February 12, 2024
  */
 
-#ifndef CAN_WRAPPER_DRIVER_INC_CAN_QUEUE_H_
-#define CAN_WRAPPER_DRIVER_INC_CAN_QUEUE_H_
+#ifndef CAN_WRAPPER_MODULE_INC_CAN_QUEUE_H_
+#define CAN_WRAPPER_MODULE_INC_CAN_QUEUE_H_
 
 #include <can_message.h>
 #include <stdbool.h>
@@ -56,4 +56,4 @@ bool CANQueue_Enqueue(CANQueue* queue, CANMessage message);
  */
 bool CANQueue_Dequeue(CANQueue* queue, CANMessage* out_message);
 
-#endif /* CAN_WRAPPER_DRIVER_INC_CAN_QUEUE_H_ */
+#endif /* CAN_WRAPPER_MODULE_INC_CAN_QUEUE_H_ */
