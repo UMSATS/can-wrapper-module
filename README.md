@@ -23,10 +23,12 @@ To set up **CAN**, you will need to:
 To import **CAN Wrapper** you will need to:
 
 1. Open your terminal in the root folder of your STM32 project
-2. Enter the following command
+2. Enter the following command:
+
 ```bash
 git submodule add https://github.com/UMSATS/can-wrapper-module Drivers/can-wrapper-module
 ```
+
 3. From STM32CubeIDE, right click on the `can-wrapper-driver/Inc` folder and click `Add/remove include path...`.
 4. Leave all configurations selected and hit `OK`.
 5. CAN Wrapper requires a dedicated timer peripheral to work. Enable `TIM16` in your `.ioc`.
@@ -107,9 +109,9 @@ void on_message_received(CANMessage msg)
 
 ## Updating
 
-To update your copy of the module to the most recent commit, open your project in a terminal and enter this command:
+To update your copy of the module to the most recent commit, open your project in a terminal and enter:
 
-```
+```bash
 git submodule update
 ```
 
