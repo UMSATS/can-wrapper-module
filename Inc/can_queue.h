@@ -17,10 +17,16 @@
 
 #define CAN_QUEUE_SIZE 100
 
+typedef struct
+{
+	CANMessageInfo info;
+	CANMessage msg;
+} CANQueueItem;
+
 typedef struct {
     uint32_t head;
     uint32_t tail;
-    CANMessage messages[CAN_QUEUE_SIZE];
+    CANQueueItem items[CAN_QUEUE_SIZE];
 } CANQueue;
 
 /**

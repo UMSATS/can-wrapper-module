@@ -1,30 +1,29 @@
 /**
  * @file can_wrapper.c
- * CAN wrapper for simplified initialisation, message reception, and message
- * transmission.
+ * CAN wrapper for simplified message receipt & transmission.
  *
  * @author Logan Furedi <logan.furedi@umsats.ca>
  *
- * @date February 12, 2024
+ * @date February 28, 2024
  */
 
 #include <can_queue.h>
 #include <can_wrapper.h>
 #include <stddef.h>
 
-#define ACK_MASK          0b00000000001
-#define RECIPIENT_ID_MASK 0b00000000110
-#define SENDER_ID_MASK    0b00000011000
-#define PRIORITY_MASK     0b11111100000
+#define ACK_MASK       0b00000000001
+#define RECIPIENT_MASK 0b00000000110
+#define SENDER_MASK    0b00000011000
+#define PRIORITY_MASK  0b11111100000
 
 static CANWrapper_InitTypeDef s_init_struct = {0};
 static CANQueue s_msg_queue = {0};
-static CANMessage s_received_msg = {0}; // the current message being processed.
+static CANQueueItem s_queue_item = {0}; // the current message being processed.
 static bool s_init = false;
 
 CANWrapper_StatusTypeDef CANWrapper_Init(CANWrapper_InitTypeDef init_struct)
 {
-	if ( !(init_struct.can_id <= 0x3
+	if ( !(init_struct.node_id <= 3
 		&& init_struct.message_callback != NULL
 		&& init_struct.hcan != NULL
 		&& init_struct.htim != NULL))
@@ -69,7 +68,7 @@ CANWrapper_StatusTypeDef CANWrapper_Init(CANWrapper_InitTypeDef init_struct)
 	s_msg_queue = CANQueue_Create();
 
 	s_init_struct = init_struct;
-	s_received_msg = (CANMessage){0};
+	s_queue_item = (CANQueueItem){0};
 
 	s_init = true;
 	return CAN_WRAPPER_HAL_OK;
@@ -79,22 +78,24 @@ CANWrapper_StatusTypeDef CANWrapper_Poll_Messages()
 {
 	if (!s_init) return CAN_WRAPPER_NOT_INITIALISED;
 
-	if (CANQueue_Dequeue(&s_msg_queue, &s_received_msg))
+	while (CANQueue_Dequeue(&s_msg_queue, &s_queue_item))
 	{
-		if (s_received_msg.is_ack_flag)
+		if (s_queue_item.info.is_ack_flag)
 		{
-			// delete the entry for this message.
+			// TODO: delete the entry for this message.
 		}
 		else
 		{
-			s_init_struct.message_callback(s_received_msg);
+			s_init_struct.message_callback(s_queue_item.msg, s_queue_item.info);
 		}
 	}
+
+	// TODO: check for timeouts.
 
 	return CAN_WRAPPER_HAL_OK;
 }
 
-CANWrapper_StatusTypeDef CANWrapper_Send_Message(CANMessage message, NodeID recipient)
+CANWrapper_StatusTypeDef CANWrapper_Send(CANMessage message, NodeID recipient)
 {
 	if (!s_init) return CAN_WRAPPER_NOT_INITIALISED;
 
@@ -102,7 +103,9 @@ CANWrapper_StatusTypeDef CANWrapper_Send_Message(CANMessage message, NodeID reci
 	CAN_TxHeaderTypeDef tx_header;
 
 	// TX message parameters.
-	uint16_t id = (message.priority << 4) | (s_init_struct.can_id << 2) | (0x0F & recipient_id);
+	uint16_t id = message.priority      << 5 & PRIORITY_MASK
+	            | s_init_struct.node_id << 3 & SENDER_MASK
+	            | recipient             << 1 & RECIPIENT_MASK;
 
 	tx_header.StdId = id;
 	tx_header.IDE = CAN_ID_STD;
@@ -114,54 +117,37 @@ CANWrapper_StatusTypeDef CANWrapper_Send_Message(CANMessage message, NodeID reci
 
 	return HAL_CAN_AddTxMessage(s_init_struct.hcan, &tx_header, message.data, &tx_mailbox);
 }
-/*
-CANWrapper_StatusTypeDef CANWrapper_Send_Response(bool success, CANMessageBody msg_body)
-{
-	if (!s_init) return CAN_WRAPPER_NOT_INITIALISED;
 
-	uint8_t ack_or_nack = success ? CMD_ACK : CMD_NACK;
-
-    CANMessage msg = {
-    		.sender_id = s_init_struct.can_id,
-    		.recipient_id = s_received_msg.sender_id,
-			.priority = s_received_msg.priority,
-    		.command_id = ack_or_nack,
-			.body = msg_body
-    };
-
-    return CANWrapper_Send_Message(msg);
-}
-*/
 // called by HAL when a new CAN message is received and pending.
-void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan_ptr)
+void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 {
-	if (hcan_ptr == s_init_struct.hcan)
+	if (hcan == s_init_struct.hcan)
 	{
 		HAL_StatusTypeDef status;
 
 		CAN_RxHeaderTypeDef rx_header; // message header.
-		CANMessage msg = {0};
+		CANQueueItem queue_item = {0};
 
 		// get CAN message.
-		status = HAL_CAN_GetRxMessage(hcan_ptr, CAN_RX_FIFO0, &rx_header, msg.data);
+		status = HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &rx_header, queue_item.msg.data);
 		if (status != HAL_OK)
 			return; // in theory this should never happen. :p
 
-		msg.recipient_id = RECIPIENT_ID_MASK & rx_header.StdId;
+		queue_item.info.recipient = (RECIPIENT_MASK & rx_header.StdId) >> 1;
 
-		if (msg.recipient_id == s_init_struct.can_id)
+		if (queue_item.info.recipient == s_init_struct.node_id) // TODO: use CAN filtering instead.
 		{
-			msg.priority = rx_header.RTR == CAN_RTR_REMOTE ? 0x7F : rx_header.ExtId >> 24;
-			msg.sender_id = (SENDER_ID_MASK & rx_header.StdId) >> 2;
+			queue_item.info.priority = rx_header.RTR == CAN_RTR_REMOTE ? 0x7F : rx_header.ExtId >> 24;
+			queue_item.info.sender = (SENDER_MASK & rx_header.StdId) >> 3;
 
-			// send ACK.
+			// TODO: send ACK.
 
-			CANQueue_Enqueue(&s_msg_queue, msg);
+			CANQueue_Enqueue(&s_msg_queue, queue_item);
 		}
 	}
 }
 
-void HAL_CAN_ErrorCallback(CAN_HandleTypeDef *hcan)
+void HAL_CAN_ErrorCallback(CAN_HandleTypeDef *hcan) // TODO
 {
 	if (HAL_CAN_GetError(hcan) & HAL_CAN_ERROR_ACK)
 	{

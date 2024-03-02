@@ -30,23 +30,23 @@ bool CANQueue_IsFull(const CANQueue* queue)
     return (queue->tail + 1) % CAN_QUEUE_SIZE == queue->head;
 }
 
-bool CANQueue_Enqueue(CANQueue* queue, CANMessage message)
+bool CANQueue_Enqueue(CANQueue* queue, CANQueueItem item)
 {
     if (CANQueue_IsFull(queue))
         return false;
 
-    queue->messages[queue->tail] = message;
+    queue->items[queue->tail] = item;
     queue->tail = (queue->tail + 1) % CAN_QUEUE_SIZE;
 
     return true;
 }
 
-bool CANQueue_Dequeue(CANQueue* queue, CANMessage* message_out)
+bool CANQueue_Dequeue(CANQueue* queue, CANQueueItem* out)
 {
     if (CANQueue_IsEmpty(queue))
         return false;
 
-    *message_out = queue->messages[queue->head];
+    *out = queue->items[queue->head];
 	queue->head = (queue->head + 1) % CAN_QUEUE_SIZE;
 
     return true;

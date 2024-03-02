@@ -5,7 +5,7 @@
  *
  * @author Logan Furedi <logan.furedi@umsats.ca>
  *
- * @date February 12, 2024
+ * @date February 27, 2024
  */
 
 #ifndef CAN_WRAPPER_MODULE_INC_CAN_WRAPPER_H_
@@ -39,68 +39,40 @@ typedef enum
 	CAN_WRAPPER_CAN_TIMEOUT,
 } CANWrapper_SendError;
 
-typedef enum
-{
-	NODE_CDH     = 0,
-	NODE_POWER   = 1,
-	NODE_ADCS    = 2,
-	NODE_PAYLOAD = 3
-} NodeID;
-
-typedef void (*CANMessageCallback)(CANMessage);
+typedef void (*CANMessageCallback)(CANMessage, CANMessageInfo);
 typedef void (*CANSendFailureCallback)(CANWrapper_SendError, CANMessage);
 
 typedef struct
 {
-	CAN_HandleTypeDef *hcan; // pointer to the CAN peripheral handle.
-	TIM_HandleTypeDef *htim; // pointer to the timer handle.
-	NodeID node_id; // your subsystem's unique ID in the CAN network. (0-3)
+	NodeID node_id;           // your subsystem's unique ID in the CAN network.
+
+	CAN_HandleTypeDef *hcan;  // pointer to the CAN peripheral handle.
+	TIM_HandleTypeDef *htim;  // pointer to the timer handle.
+
 	CANMessageCallback message_callback; // called when a new message is polled.
 	CANSendFailureCallback send_failure_callback; // called when a message fails to send.
 } CANWrapper_InitTypeDef;
 
-#define CMD_ACK   0x01
-#define CMD_NACK  0x02
-
 /**
- * @brief				Performs necessary setup for normal functioning of CAN.
+ * @brief				Performs necessary setup for normal functioning.
  *
  * @param init_struct   Configuration for initialisation.
  */
 CANWrapper_StatusTypeDef CANWrapper_Init(CANWrapper_InitTypeDef init_struct);
 
 /**
- * @brief               Polls the CAN queue for incoming messages. The callback
- *                      is called for each new message.
+ * @brief               Polls the CAN queue for incoming messages.
+ *
+ * This is the point where callback functions will be triggered.
  */
 CANWrapper_StatusTypeDef CANWrapper_Poll_Messages();
 
 /**
  * @brief               Sends a message over CAN.
  *
- * All necessary data such as recipient ID, priority, message contents, etc. are
- * packaged with the CANMessage structure.
- *
- * @param message       See CANMessage type definition.
+ * @param message       See CANMessage definition.
  * @param recipient     ID of the intended recipient.
  */
-CANWrapper_StatusTypeDef CANWrapper_Send_Message(CANMessage message, NodeID recipient);
+CANWrapper_StatusTypeDef CANWrapper_Send(CANMessage message, NodeID recipient);
 
-/**
- * @brief               Sends a response message to the most recent sender.
- *
- * Sends an ACK or a NACK message with the message body attached. The command
- * ID, recipient ID and priority are decided for you. If more control is needed,
- * consider using CANWrapper_Send_Message.
- *
- * @remark              Your data is limited to 7 bytes.
- *
- * @param success       true sends an ACK. false sends a NACK.
- * @param msg_body      In most cases the message body should be a copy of the
- *                      received message, with the last remaining bytes being
- *                      reserved for error information. Consult the command list
- *                      in the google docs for details.
- *
-CANWrapper_StatusTypeDef CANWrapper_Send_Response(bool success, CANMessageBody msg_body);
-*/
 #endif /* CAN_WRAPPER_MODULE_INC_CAN_WRAPPER_H_ */
