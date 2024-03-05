@@ -11,7 +11,8 @@
 #ifndef CAN_WRAPPER_MODULE_INC_CAN_WRAPPER_H_
 #define CAN_WRAPPER_MODULE_INC_CAN_WRAPPER_H_
 
-#include <can_message.h>
+#include "can_command_list.h"
+#include "can_message.h"
 #include <stdbool.h>
 #include <stm32l4xx.h>
 #include <stm32l4xx_hal_can.h>
@@ -39,12 +40,13 @@ typedef enum
 	CAN_WRAPPER_CAN_TIMEOUT,
 } CANWrapper_SendError;
 
-typedef void (*CANMessageCallback)(CANMessage, CANMessageInfo);
+typedef void (*CANMessageCallback)(CANMessage, NodeID, bool);
 typedef void (*CANSendFailureCallback)(CANWrapper_SendError, CANMessage);
 
 typedef struct
 {
 	NodeID node_id;           // your subsystem's unique ID in the CAN network.
+	bool notify_of_acks;      // whether to notify of incoming ACK's.
 
 	CAN_HandleTypeDef *hcan;  // pointer to the CAN peripheral handle.
 	TIM_HandleTypeDef *htim;  // pointer to the timer handle.
@@ -70,9 +72,9 @@ CANWrapper_StatusTypeDef CANWrapper_Poll_Messages();
 /**
  * @brief               Sends a message over CAN.
  *
- * @param message       See CANMessage definition.
  * @param recipient     ID of the intended recipient.
+ * @param msg           See CANMessage definition.
  */
-CANWrapper_StatusTypeDef CANWrapper_Send(CANMessage message, NodeID recipient);
+CANWrapper_StatusTypeDef CANWrapper_Transmit(NodeID recipient, CANMessage *msg);
 
 #endif /* CAN_WRAPPER_MODULE_INC_CAN_WRAPPER_H_ */

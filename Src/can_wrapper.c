@@ -21,6 +21,8 @@ static CANQueue s_msg_queue = {0};
 static CANQueueItem s_queue_item = {0}; // the current message being processed.
 static bool s_init = false;
 
+static CANWrapper_StatusTypeDef transmit_internal(NodeID recipient, CANMessage *msg, bool is_ack);
+
 CANWrapper_StatusTypeDef CANWrapper_Init(CANWrapper_InitTypeDef init_struct)
 {
 	if ( !(init_struct.node_id <= 3
@@ -80,13 +82,14 @@ CANWrapper_StatusTypeDef CANWrapper_Poll_Messages()
 
 	while (CANQueue_Dequeue(&s_msg_queue, &s_queue_item))
 	{
-		if (s_queue_item.info.is_ack_flag)
+		if (s_queue_item.is_ack)
 		{
 			// TODO: delete the entry for this message.
 		}
-		else
+
+		if (!s_queue_item.is_ack || s_init_struct.notify_of_acks)
 		{
-			s_init_struct.message_callback(s_queue_item.msg, s_queue_item.info);
+			s_init_struct.message_callback(s_queue_item.msg, s_queue_item.sender, s_queue_item.is_ack);
 		}
 	}
 
@@ -95,27 +98,34 @@ CANWrapper_StatusTypeDef CANWrapper_Poll_Messages()
 	return CAN_WRAPPER_HAL_OK;
 }
 
-CANWrapper_StatusTypeDef CANWrapper_Send(CANMessage message, NodeID recipient)
+CANWrapper_StatusTypeDef CANWrapper_Transmit(NodeID recipient, CANMessage *msg)
+{
+	return transmit_internal(recipient, msg, false);
+}
+
+CANWrapper_StatusTypeDef transmit_internal(NodeID recipient, CANMessage *msg, bool is_ack)
 {
 	if (!s_init) return CAN_WRAPPER_NOT_INITIALISED;
 
-	uint32_t tx_mailbox; // transmit mailbox.
-	CAN_TxHeaderTypeDef tx_header;
+	CmdConfig config = cmd_configs[msg->cmd];
 
 	// TX message parameters.
-	uint16_t id = message.priority      << 5 & PRIORITY_MASK
+	uint16_t id = config.priority       << 5 & PRIORITY_MASK
 	            | s_init_struct.node_id << 3 & SENDER_MASK
-	            | recipient             << 1 & RECIPIENT_MASK;
-
-	tx_header.StdId = id;
-	tx_header.IDE = CAN_ID_STD;
-	tx_header.RTR = CAN_RTR_DATA;
-	tx_header.DLC = CAN_MESSAGE_LENGTH;
+	            | recipient             << 1 & RECIPIENT_MASK
+				| (is_ack ? ACK_MASK : 0);
 
 	// wait to send CAN message.
 	while (HAL_CAN_GetTxMailboxesFreeLevel(s_init_struct.hcan) == 0){}
 
-	return HAL_CAN_AddTxMessage(s_init_struct.hcan, &tx_header, message.data, &tx_mailbox);
+	CAN_TxHeaderTypeDef tx_header;
+	tx_header.IDE = CAN_ID_STD;   // use standard identifier.
+	tx_header.StdId = id;         // define standard identifier.
+	tx_header.RTR = CAN_RTR_DATA; // specify as data frame.
+	tx_header.DLC = config.dlc;   // specify data length.
+
+	uint32_t tx_mailbox; // transmit mailbox.
+	return HAL_CAN_AddTxMessage(s_init_struct.hcan, &tx_header, msg->data, &tx_mailbox);
 }
 
 // called by HAL when a new CAN message is received and pending.
@@ -125,22 +135,29 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 	{
 		HAL_StatusTypeDef status;
 
-		CAN_RxHeaderTypeDef rx_header; // message header.
 		CANQueueItem queue_item = {0};
 
 		// get CAN message.
+		CAN_RxHeaderTypeDef rx_header; // message header.
 		status = HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &rx_header, queue_item.msg.data);
+
 		if (status != HAL_OK)
 			return; // in theory this should never happen. :p
 
-		queue_item.info.recipient = (RECIPIENT_MASK & rx_header.StdId) >> 1;
+		bool is_ack      = ACK_MASK & rx_header.StdId;
+		NodeID recipient = (RECIPIENT_MASK & rx_header.StdId) >> 1;
+		NodeID sender    = (SENDER_MASK & rx_header.StdId) >> 3;
 
-		if (queue_item.info.recipient == s_init_struct.node_id) // TODO: use CAN filtering instead.
+		if (recipient == s_init_struct.node_id && sender != s_init_struct.node_id) // TODO: use CAN filtering instead.
 		{
-			queue_item.info.priority = rx_header.RTR == CAN_RTR_REMOTE ? 0x7F : rx_header.ExtId >> 24;
-			queue_item.info.sender = (SENDER_MASK & rx_header.StdId) >> 3;
+			queue_item.sender = sender;
+			queue_item.is_ack = is_ack;
 
-			// TODO: send ACK.
+			if (!is_ack)
+			{
+				// respond with ACK.
+				transmit_internal(sender, &queue_item.msg, true);
+			}
 
 			CANQueue_Enqueue(&s_msg_queue, queue_item);
 		}

@@ -10,9 +10,10 @@
 #ifndef CAN_WRAPPER_MODULE_INC_CAN_MESSAGE_H_
 #define CAN_WRAPPER_MODULE_INC_CAN_MESSAGE_H_
 
+#include "can_command_list.h"
 #include <sys/_stdint.h>
 #include <stdbool.h>
-#include "can_command_list.h"
+#include <string.h>
 
 #define CAN_MESSAGE_LENGTH 8
 
@@ -33,12 +34,7 @@ typedef union
 	uint8_t data[CAN_MESSAGE_LENGTH]; // the entire message (command ID + body).
 } CANMessage;
 
-typedef struct
-{
-	uint8_t priority; // 0-63.
-	NodeID sender;
-	NodeID recipient;
-	bool is_ack_flag;
-} CANMessageInfo;
+#define GET_ARG(msg, pos, var) \
+	var = *((typeof(var)*)(msg.body + pos)) // this is only safe because TSAT MCU's are all the same endianness.
 
 #endif /* CAN_WRAPPER_MODULE_INC_CAN_MESSAGE_H_ */

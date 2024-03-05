@@ -19,8 +19,9 @@
 
 typedef struct
 {
-	CANMessageInfo info;
 	CANMessage msg;
+	NodeID sender;
+	bool is_ack;
 } CANQueueItem;
 
 typedef struct {
