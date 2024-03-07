@@ -1,4 +1,4 @@
-# CAN Wrapper
+# CAN Wrapper Module
 
 This module wraps a simpler interface around HAL's CAN interface for sending & receiving messages onboard the TSAT satellite.
 
@@ -8,7 +8,7 @@ You will need CAN set up in order to use this module.
 
 To set up **CAN**, you will need to:
 
-1. Enable a CAN peripheral in your `.ioc` file under `Pinout & Configuration`.
+1. Enable a CAN peripheral in your `.ioc` file under `Pinout & Configuration > Connectivity`.
 2. Configure your CAN peripheral as such:
    - In `NVIC Settings`, enable `RX0 interrupt`.
    - In `Parameter Settings`, set `Prescaler (for Time Quantum)` to `16`.
