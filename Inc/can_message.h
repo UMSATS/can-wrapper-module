@@ -4,7 +4,7 @@
  *
  * @author Logan Furedi <logan.furedi@umsats.ca>
  *
- * @date February 27, 2024
+ * @date March 6, 2024
  */
 
 #ifndef CAN_WRAPPER_MODULE_INC_CAN_MESSAGE_H_
@@ -15,7 +15,7 @@
 #include <stdbool.h>
 #include <string.h>
 
-#define CAN_MESSAGE_LENGTH 8
+#define CAN_MAX_BODY_SIZE 7
 
 typedef enum
 {
@@ -27,14 +27,38 @@ typedef enum
 
 typedef union
 {
-	struct {
+	struct
+	{
 		uint8_t cmd;
-		uint8_t body[CAN_MESSAGE_LENGTH-1]; // just the message body.
+		uint8_t body[CAN_MAX_BODY_SIZE];
 	};
-	uint8_t data[CAN_MESSAGE_LENGTH]; // the entire message (command ID + body).
+	uint8_t data[CAN_MAX_BODY_SIZE+1];
 } CANMessage;
 
+typedef struct
+{
+	CANMessage msg;
+	uint8_t priority;
+	uint8_t sender;
+	uint8_t recipient;
+	uint8_t is_ack;
+} CachedCANMessage;
+
+static inline bool CANMessage_Equals(const CANMessage *msg1, const CANMessage *msg2)
+{
+	return msg1->cmd == msg2->cmd
+			&& memcmp(msg1->body, msg2->body, cmd_configs[msg1->cmd].body_size) == 0;
+}
+
+// macros to get/set arguments in a command.
+// NOTE: these depend on the fact that TSAT's MCUs are all of the same endianness.
+// If that were to change, you would have to set/get the elements in the message
+// body directly.
+
 #define GET_ARG(msg, pos, var) \
-	var = *((typeof(var)*)(msg.body + pos)) // this is only safe because TSAT MCU's are all the same endianness.
+	var = *((typeof(var)*)(msg.body + pos))
+
+#define SET_ARG(msg, pos, var) \
+	*((typeof(var)*)(msg.body + pos)) = var;
 
 #endif /* CAN_WRAPPER_MODULE_INC_CAN_MESSAGE_H_ */

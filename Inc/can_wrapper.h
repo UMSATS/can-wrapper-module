@@ -34,25 +34,36 @@ typedef enum
 	CAN_WRAPPER_FAILED_TO_START_TIMER,
 } CANWrapper_StatusTypeDef;
 
-typedef enum
+typedef struct
 {
-	CAN_WRAPPER_TIMEOUT = 0,
-	CAN_WRAPPER_CAN_TIMEOUT,
-} CANWrapper_SendError;
+	enum
+	{
+		CAN_WRAPPER_TIMEOUT = 0,
+		CAN_WRAPPER_CAN_TIMEOUT,
+	} error_code;
+	union
+	{
+		struct {
+			CANMessage msg;
+			NodeID recipient;
+		};
+		// TODO: more error information.
+	};
+} CANWrapper_Error;
 
 typedef void (*CANMessageCallback)(CANMessage, NodeID, bool);
-typedef void (*CANSendFailureCallback)(CANWrapper_SendError, CANMessage);
+typedef void (*CANErrorCallback)(CANWrapper_Error);
 
 typedef struct
 {
 	NodeID node_id;           // your subsystem's unique ID in the CAN network.
-	bool notify_of_acks;      // whether to notify of incoming ACK's.
+	bool notify_of_acks;      // whether to notify you of incoming ACK's.
 
 	CAN_HandleTypeDef *hcan;  // pointer to the CAN peripheral handle.
 	TIM_HandleTypeDef *htim;  // pointer to the timer handle.
 
 	CANMessageCallback message_callback; // called when a new message is polled.
-	CANSendFailureCallback send_failure_callback; // called when a message fails to send.
+	CANErrorCallback error_callback;     // called when an error occurs.
 } CANWrapper_InitTypeDef;
 
 /**

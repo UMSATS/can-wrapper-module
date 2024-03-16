@@ -1,6 +1,6 @@
 # CAN Wrapper Module
 
-This module wraps a simpler interface around HAL's CAN interface for sending & receiving messages onboard the TSAT satellite.
+This module simplifies CAN message handling on the TSAT satellite by providing an easy-to-use interface that abstracts our custom protocol, built on top of HAL's CAN interface.
 
 ## Importing
 
@@ -15,7 +15,7 @@ To set up **CAN**, you will need to:
    - In `Parameter Settings`, set `Time Quanta in Bit Segment 1` to `5 Times`.
    - In `Parameter Settings`, set `Time Quanta in Bit Segment 2` to `4 Times`.
 
->Note: These Quanta settings are recommended as of Feb 27, 2024 and are subject to change.
+>Note: These Quanta settings are recommended for microcontrollers running at 80MHz to keep all subsystems synced. Should you decide to change your clock speed, you will need to modify these values accordingly.
 
 3. Save & regenerate code.
 4. Ensure `MX_CAN#_Init();` has been generated in `main.c`
@@ -39,80 +39,109 @@ git submodule add https://github.com/UMSATS/can-wrapper-module Drivers/can-wrapp
 
 ## Initialisation
 
-This driver uses a flexible *callback* approach to events such as incoming messages and transmission failures.
+This driver uses a flexible **callback** approach to events such as incoming messages and communication errors.
 
-All initialisation settings are to be stored in a `CANWrapper_InitTypeDef` struct.
+All settings for the module can be configured in a  `CANWrapper_InitTypeDef` structure.
 
-E.g:
 
 ```c
 CANWrapper_InitTypeDef wc_init = {
-		.node_id = NODE_ADCS, // your subsystem's unique ID in the CAN network.
-		
+		.node_id = NODE_ADCS,    // your subsystem's unique ID in the CAN network.
+		.notify_of_acks = false, // whether to notify you of incoming ACK's.
+
 		.hcan = &hcan1,  // pointer to the CAN peripheral handle.
 		.htim = &htim16, // pointer to the timer handle.
-		
-		.message_callback = &on_message_received, // to process incoming messages.
-		.send_failure_callback = &on_send_failed // timeout during transmission.
+
+		.message_callback = &on_message_received, // called when a new message is polled.
+		.error_callback = &on_error_occured;      // called when a communication error occurs.
 };
 ```
 
-Pass in your settings when calling `CANWrapper_Init` (sometime after `MX_CAN#_Init`):
+To initialise CAN Wrapper, call `CANWrapper_Init` with your chosen settings (sometime after `MX_CAN#_Init`):
 
 ```c
 CANWrapper_Init(wc_init);
 ```
 
-Here is an adaptable template for a message handler to start:
+## Receiving Messages
+
+Here is starter template for a message handling function. Add your specific subsystem's functionality as needed. Note that this code also makes use of the error context utility to catch errors when they occur.
 
 ```c
 #include "can_wrapper.h"
-void on_message_received(CANMessage msg)
+#include "util/error_context.h"
+#include <stdbool.h>
+
+void on_message_received(CANMessage msg, NodeID sender, bool is_ack)
 {
-	CANMessageBody response_body = { .data = { msg.command_id } };
+	ErrorBuffer error_buffer; // stores command errors.
+	ErrorContext_Push_Buffer(&error_buffer); // push to the top of the buffer stack.
 
-	// the reset command is a special case. (you must send a response FIRST)
-	if (msg.command_id == CMD_RESET)
+	switch (msg.cmd)
 	{
-		CANWrapper_Send_Response(true, response_body);
-		Perform_Manual_Reset(); // implement this as per your subsystem.
-	}
-
-	HAL_StatusTypeDef status = HAL_OK; // use an appropriate enum in your case.
-	uint8_t response_data_size = 0;
-
-	switch (msg.command_id)
-	{
-		case CMD_LED_ON: // example command.
+		case CMD_PLD_SET_WELL_LED: // example command.
 		{
-			status = LEDs_Set_LED(msg.data[1], ON);
-			response_body.data[1] = msg.data[1];
-			response_data_size = 1;
+			// get the command arguments as defined in the command reference.
+			uint8_t well_id, power;
+			GET_ARG(msg, 0, well_id); // syntax: GET_ARG(msg, byte #, output var)
+			GET_ARG(msg, 1, power);
+
+			// perform instructed action.
+			LEDs_Set_LED(well_id, power);
 			break;
 		}
 		// ...
 		default:
 		{
-			status = HAL_ERROR;
+			// unrecognized command.
+			PUSH_ERROR(ERROR_UNKNOWN_COMMAND, msg.cmd);
 			break;
 		}
 	}
 
-	if (status != HAL_OK && response_data_size < CAN_MESSAGE_LENGTH-1)
+	if (ErrorBuffer_Has_Error(&error_buffer))
 	{
-		response_body.data[response_data_size+1] = status; // append error code to NACK.
+		CANMessage error_report;
+		error_report.cmd = CMD_PROCESS_ERROR;
+		SET_ARG(error_report, 0, error_buffer); // syntax: SET_ARG(msg, byte #, input var)
+
+		CANWrapper_Transmit(sender, &error_report);
 	}
 
-	CANWrapper_Send_Response(status == HAL_OK, response_body); // return to sender.
+	ErrorContext_Pop_Buffer();
 }
 ```
 
-## Updating
+## Handling Errors
+
+Here is starter template for an error handling function. Note that it also makes use of the error context utility to catch errors when they occur.
+
+```c
+#include "can_wrapper.h"
+#include "util/error_context.h"
+#include <stdbool.h>
+
+void on_error_occured(CANWrapper_Error error)
+{
+	switch (error.error_code)
+	{
+		case CAN_WRAPPER_TIMEOUT:
+		{
+			// your transmission attempt timed out.
+			// re-send the message to the intended recipient.
+			CANWrapper_Transmit(error.recipient, &error.msg);
+			break;
+		}
+	}
+}
+```
+
+## Updating CAN Wrapper
 
 To update your copy of the module to the most recent commit, open your project in a terminal and enter:
 
 ```bash
-git submodule update
+git submodule update --recursive
 ```
 
 ## Additional Examples
@@ -120,53 +149,63 @@ git submodule update
 ### Create & Send a CAN Message
 
 ```c
-#define CDH_ID               0x01
-#define CMD_HELLO_MESSAGE    0xA3
+#include "can_wrapper.h"
+#include <stdbool.h>
 
-void Say_Hello()
+bool Report_PCB_Temp()
 {
-	CANMessage my_message = {
-	    .recipient_id = CDH_ID,
-	    .priority = 3,
-	    .command_id = CMD_HELLO_MESSAGE,
-	    .body = {
-	        .data = {
-	            'H', 'e', 'l', 'l', 'o', '\0'
-	        }
-	    }
-	};
-	
-	CANWrapper_Send_Message(my_message);
+	uint16_t temp;
+	bool success = TMP235_Read_Temp(&temp);
+	if (success)
+	{
+		CANMessage my_msg;
+		my_msg.cmd = CMD_CDH_PROCESS_PCB_TEMP;
+		SET_ARG(my_msg, 0, temp);
+		CANWrapper_Transmit(NODE_CDH, &my_msg);
+	}
+
+	return success;
 }
 ```
 
-### Accessing `CANMessage` Data Members
+### The `CANMessage` Data Members
 
-The `CANMessage` type is designed to be flexible in that you can use any of the fields:
+The `CANMessage` type has three fields:
 
- - `.command_id`
- - `.body`
- - `.data`
+ - `.cmd`: the command ID
+ - `.body`: the arguments of the command
+ - `.data`: the entire message (including command ID & body)
 
-to access different parts of a CAN message.
+The `data` feild occupies the same section in memory as the other two. Therefore, any change to `cmd` or `body` will reflect in `data`, and vice-versa. Think of `msg.data` as a shorthand for 	`(uint8_t*)msg`.
 
 ```c
 CANMessage msg;
 
-msg.command_id = 0xB5;  // set command ID to 0xB5.
-msg.data[0] = 0xB6;     // another way to set command ID (this time to 0xB6).
+msg.cmd = CMD_CDH_PROCESS_PCB_TEMP;  // set command ID.
+msg.data[0] = CMD_CDH_PROCESS_MCU_TEMP; // another way to set command ID. (less legible)
 
-msg.body.data[0] = 'A'; // set first byte in message body. (ie. the byte after command ID)
-msg.data[1] = 'A';      // equivalent.
+msg.body[0] = 'A'; // set first byte in message body. (ie. the byte after command ID)
+msg.data[1] = 'A'; // equivalent.
+SET_ARG(msg, 0, 'A'); // equivalent.
 
-CANMessageBody my_body = { .data = { 'H', 'i', '\0' } };
-msg.body = my_body;     // replace the entire message body struct.
+// SET_ARG allows you to assign larger types to the message body very easily.
+// Warning: make sure your data is no more than 7 bytes! (56 bits)
+uint32_t large_number = 4294967295;
+SET_ARG(msg, 0, large_number)
+
+// you can access arguments in a similar way
+uint8_t single_byte;
+uint32_t four_bytes;
+GET_ARG(msg, 0, single_byte); // retrieves byte 0 in the message body.
+GET_ARG(msg, 0, four_bytes);  // retrieves bytes 0-3 in the message body.
 ```
+
+It's recommended to use the `SET_ARG` and `GET_ARG` macros whenever possible since that will potentially result in fewer breaking changes in the event of an update.
 
 See `can_message.h` for the full structure definition.
 
 ## More Reading
 
-The below link is old, so I don't recommend reading it, but I will leave it here in case you want to read the old documentation of this interface or you want to understand the high level concepts of how CAN works.
+The below link is old, so I don't recommend reading it, but I will leave it here in case you want to read the documentation for the old version of this interface or you want to understand the high level concepts of how CAN works. Definitely not a required read to use this module.
 
 <https://drive.google.com/file/d/1HHNWpN6vo-JKY5VvzY14uecxMsGIISU7/view?usp=share_link>

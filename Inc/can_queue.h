@@ -1,6 +1,7 @@
 /**
  * @file can_queue.h
  * Queue ADT for storing CAN messages.
+ * Implemented using circular buffer.
  *
  * @author Logan Furedi <logan.furedi@umsats.ca>
  * @author Om Sevak <om.sevak@umsats.ca>
@@ -19,12 +20,11 @@
 
 typedef struct
 {
-	CANMessage msg;
-	NodeID sender;
-	bool is_ack;
+	CachedCANMessage msg;
 } CANQueueItem;
 
-typedef struct {
+typedef struct
+{
     uint32_t head;
     uint32_t tail;
     CANQueueItem items[CAN_QUEUE_SIZE];
@@ -52,7 +52,7 @@ bool CANQueue_IsFull(const CANQueue* queue);
  * @param message       The CAN message to enqueue.
  * @return              true on success. false on fail.
  */
-bool CANQueue_Enqueue(CANQueue* queue, CANMessage message);
+bool CANQueue_Enqueue(CANQueue* queue, CANQueueItem message);
 
 /**
  * @brief:              Dequeues a message out of the given queue.
@@ -61,6 +61,6 @@ bool CANQueue_Enqueue(CANQueue* queue, CANMessage message);
  * @param out_message   The output location for CAN message.
  * @return              true on success. false on fail.
  */
-bool CANQueue_Dequeue(CANQueue* queue, CANMessage* out_message);
+bool CANQueue_Dequeue(CANQueue* queue, CANQueueItem* out_message);
 
 #endif /* CAN_WRAPPER_MODULE_INC_CAN_QUEUE_H_ */

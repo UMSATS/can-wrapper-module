@@ -1,6 +1,7 @@
 /**
  * @file can_queue.c
  * Queue ADT for storing CAN messages.
+ * Implemented using circular buffer.
  *
  * @author Logan Furedi <logan.furedi@umsats.ca>
  * @author Om Sevak <om.sevak@umsats.ca>
