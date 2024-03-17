@@ -38,9 +38,9 @@ typedef struct
 {
 	enum
 	{
-		CAN_WRAPPER_TIMEOUT = 0,
-		CAN_WRAPPER_CAN_TIMEOUT,
-	} error_code;
+		CAN_WRAPPER_ERROR_TIMEOUT = 0,
+		CAN_WRAPPER_ERROR_CAN_TIMEOUT,
+	} error;
 	union
 	{
 		struct {
@@ -49,10 +49,10 @@ typedef struct
 		};
 		// TODO: more error information.
 	};
-} CANWrapper_Error;
+} CANWrapper_ErrorInfo;
 
 typedef void (*CANMessageCallback)(CANMessage, NodeID, bool);
-typedef void (*CANErrorCallback)(CANWrapper_Error);
+typedef void (*CANErrorCallback)(CANWrapper_ErrorInfo);
 
 typedef struct
 {

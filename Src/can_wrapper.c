@@ -117,9 +117,15 @@ CANWrapper_StatusTypeDef CANWrapper_Poll_Messages()
 		uint64_t timeout_tick = (tx_tick + TIMEOUT) % PERIOD_TICKS;
 
 		if (tx_tick < timeout_tick ? (current_tick >= timeout_tick || current_tick < tx_tick)
-				: (current_tick >= timeout_tick && current_tick < tx_tick))
+				: (current_tick >= timeout_tick && current_tick < tx_tick)) // don't even try to decipher this :)
 		{
 			// timed out.
+			CANWrapper_ErrorInfo error_info;
+			error_info.error = CAN_WRAPPER_ERROR_TIMEOUT;
+			error_info.msg = front_item->msg.msg;
+			error_info.recipient = front_item->msg.recipient;
+			s_init_struct.error_callback(error_info); // TODO: this is dangerous. could easily lead to bugs. FIX!
+
 			TxCache_Erase(&s_tx_cache, 0);
 		}
 		else
