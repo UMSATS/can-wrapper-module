@@ -1,10 +1,10 @@
 # CAN Wrapper Module
 
-This module simplifies CAN message handling on the TSAT satellite by providing an easy-to-use interface that abstracts our custom protocol, built on top of HAL's CAN interface.
+This module simplifies CAN message handling on the TSAT satellite by providing an easy-to-use interface that abstracts our custom protocol.
 
 ## Importing
 
-You will need CAN set up in order to use this module.
+You will need CAN set up in your STM32 project to use this module.
 
 To set up **CAN**, you will need to:
 
@@ -39,10 +39,9 @@ git submodule add https://github.com/UMSATS/can-wrapper-module Drivers/can-wrapp
 
 ## Initialisation
 
-This driver uses a flexible **callback** approach to events such as incoming messages and communication errors.
+This driver uses a flexible **callback** approach to handle events such as incoming messages and communication errors.
 
-All settings for the module can be configured in a  `CANWrapper_InitTypeDef` structure.
-
+The  `CANWrapper_InitTypeDef` structure contains many settings that tune the module to your needs.
 
 ```c
 CANWrapper_InitTypeDef wc_init = {
@@ -112,14 +111,14 @@ void on_message_received(CANMessage msg, NodeID sender, bool is_ack)
 }
 ```
 
+> Note: As of March 17th, the "Error Context" utility has not yet been released due to my busy schedule. If you don't have it, you can either ignore the error reporting code completely or implement a simplified version of it yourself. I recommend waiting however, since it will be coming very soon!
+
 ## Handling Errors
 
-Here is starter template for an error handling function. Note that it also makes use of the error context utility to catch errors when they occur.
+Here is starter template for an error handling function.
 
 ```c
 #include "can_wrapper.h"
-#include "util/error_context.h"
-#include <stdbool.h>
 
 void on_error_occured(CANWrapper_Error error)
 {
@@ -128,13 +127,18 @@ void on_error_occured(CANWrapper_Error error)
 		case CAN_WRAPPER_TIMEOUT:
 		{
 			// your transmission attempt timed out.
-			// re-send the message to the intended recipient.
+			// Here you can resolve the issue as appropriate.
+
+			// You can re-send the message to the intended recipient like so.
 			CANWrapper_Transmit(error.recipient, &error.msg);
+
 			break;
 		}
 	}
 }
 ```
+
+> Warning: The error handling functionality is quite bare in this version. It only notifies of timeouts, but there a plenty of other things that can go wrong. Expect rapid changes and improvements in this area.
 
 ## Updating CAN Wrapper
 
