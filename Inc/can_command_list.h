@@ -32,10 +32,10 @@ typedef enum
 	////////////////////////////////////////////
 	/// COMMON
 	////////////////////////////////////////////
-	CMD_PREPRARE_FOR_SHUTDOWN            = 0x00,
-	CMD_RESET,
-	CMD_GET_PCB_TEMP,
-	CMD_GET_MCU_TEMP,
+	CMD_COMMON_PREPRARE_FOR_SHUTDOWN     = 0x00,
+	CMD_COMMON_RESET,
+	CMD_COMMON_GET_PCB_TEMP,
+	CMD_COMMON_GET_MCU_TEMP,
 
 	////////////////////////////////////////////
 	/// CDH
