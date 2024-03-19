@@ -78,24 +78,24 @@ void on_message_received(CANMessage msg, NodeID sender, bool is_ack)
 
 	switch (msg.cmd)
 	{
-		case CMD_PLD_SET_WELL_LED: // example command.
-		{
-			// get the command arguments as defined in the command reference.
-			uint8_t well_id, power;
-			GET_ARG(msg, 0, well_id); // syntax: GET_ARG(msg, byte #, output var)
-			GET_ARG(msg, 1, power);
+	case CMD_PLD_SET_WELL_LED: // example command.
+	{
+		// get the command arguments as defined in the command reference.
+		uint8_t well_id, power;
+		GET_ARG(msg, 0, well_id); // syntax: GET_ARG(msg, byte #, output var)
+		GET_ARG(msg, 1, power);
 
-			// perform instructed action.
-			LEDs_Set_LED(well_id, power);
-			break;
-		}
-		// ...
-		default:
-		{
-			// unrecognized command.
-			PUSH_ERROR(ERROR_UNKNOWN_COMMAND, msg.cmd);
-			break;
-		}
+		// perform instructed action.
+		LEDs_Set_LED(well_id, power);
+		break;
+	}
+	// ...
+	default:
+	{
+		// unrecognized command.
+		PUSH_ERROR(ERROR_UNKNOWN_COMMAND, msg.cmd);
+		break;
+	}
 	}
 
 	if (ErrorBuffer_Has_Error(&error_buffer))
@@ -191,7 +191,7 @@ The `CANMessage` type has three fields:
  - `.body`: the arguments of the command
  - `.data`: the entire message (including command ID & body)
 
-The `data` feild occupies the same section in memory as the other two. Therefore, any change to `cmd` or `body` will reflect in `data`, and vice-versa. Think of `msg.data` as a shorthand for 	`(uint8_t*)msg`.
+The `data` field occupies the same section in memory as the other two. Therefore, any change to `cmd` or `body` will reflect in `data`, and vice-versa. Think of `msg.data` as a shorthand for 	`(uint8_t*)msg`.
 
 ```c
 CANMessage msg;
@@ -215,7 +215,7 @@ GET_ARG(msg, 0, single_byte); // retrieves byte 0 in the message body.
 GET_ARG(msg, 0, four_bytes);  // retrieves bytes 0-3 in the message body.
 ```
 
-It's recommended to use the `SET_ARG` and `GET_ARG` macros whenever possible since that will potentially result in fewer breaking changes in the event of an update.
+It's recommended to use the `SET_ARG` and `GET_ARG` macros to set and get command arguments since it will make your code more resilient to breaking changes in later updates.
 
 See `can_message.h` for the full structure definition.
 
