@@ -101,10 +101,10 @@ void on_message_received(CANMessage msg, NodeID sender, bool is_ack)
 	if (ErrorBuffer_Has_Error(&error_buffer))
 	{
 		CANMessage error_report;
-		error_report.cmd = CMD_PROCESS_ERROR;
+		error_report.cmd = CMD_CDH_PROCESS_ERROR;
 		SET_ARG(error_report, 0, error_buffer); // syntax: SET_ARG(msg, byte #, input var)
 
-		CANWrapper_Transmit(sender, &error_report);
+		CANWrapper_Transmit(NODE_CDH, &error_report);
 	}
 
 	ErrorContext_Pop_Buffer();
