@@ -154,6 +154,11 @@ git commit -m "Update CAN Wrapper Module"
 git push
 ```
 
+If you have multiple submodules in your project, you can update all of them at once by replacing steps 2-4 with:
+```bash
+git submodule foreach git pull origin master
+```
+
 ## Additional Examples
 
 ### Create & Send a CAN Message
