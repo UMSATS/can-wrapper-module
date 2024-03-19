@@ -120,11 +120,11 @@ Here is starter template for an error handling function.
 ```c
 #include "can_wrapper.h"
 
-void on_error_occured(CANWrapper_Error error)
+void on_error_occured(CANWrapper_ErrorInfo error_info)
 {
-	switch (error.error_code)
+	switch (error_info.error)
 	{
-		case CAN_WRAPPER_TIMEOUT:
+		case CAN_WRAPPER_ERROR_TIMEOUT:
 		{
 			// your transmission attempt timed out.
 			// Here you can resolve the issue as appropriate.
@@ -207,6 +207,11 @@ GET_ARG(msg, 0, four_bytes);  // retrieves bytes 0-3 in the message body.
 It's recommended to use the `SET_ARG` and `GET_ARG` macros whenever possible since that will potentially result in fewer breaking changes in the event of an update.
 
 See `can_message.h` for the full structure definition.
+
+## Tips 'n' Tricks
+
+ - To quickly search for commands in the code editor, type the name of a prefix (e.g. one of `CMD_PLD`, `CMD_ACDS`, `CMD_PWR`, or `CMD_CDH`) and press `Ctrl + Space`. You'll then be greeted with a list of matching commands. (assuming you've included `can_wrapper.h`)
+ - If you haven't already, check out the [Command Reference for TSAT-7](https://docs.google.com/spreadsheets/d/1o90k0nbOKp7gOJZohCGgkKvFZ3N4jlzd4gb5Lt9xrjw/edit#gid=1728821240) to read up on the expected format of each command. Ensuring the format you send is correct is important, as otherwise the data received may be incorrect or it might be cut off.
 
 ## More Reading
 
