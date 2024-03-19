@@ -142,10 +142,16 @@ void on_error_occured(CANWrapper_ErrorInfo error_info)
 
 ## Updating CAN Wrapper
 
-To update your copy of the module to the most recent commit, open your project in a terminal and enter:
-
+The following steps will update your copy of the module to the most recent commit:
+1. Ensure your project repository is up-to-date and clean (`git pull` to update, then `git status` to check if it's clean. commit and push if it's not).
+2. `cd` into the root folder of the submodule (likely named `can-wrapper-module`).
+3. Enter `git pull`.
+4. `cd` back to the root folder of your project.
+5. Enter:
 ```bash
-git submodule update --recursive
+git add .
+git commit -m "Update CAN Wrapper Module"
+git push
 ```
 
 ## Additional Examples
